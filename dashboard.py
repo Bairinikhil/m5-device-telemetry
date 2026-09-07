@@ -26,6 +26,7 @@ HTML = """<!doctype html><html><head><meta charset='utf-8'><meta http-equiv='ref
 const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
 ws.onmessage=(e)=>{const d=JSON.parse(e.data);const online=(Date.now()/1000-d.received_at)<30;document.getElementById('dashboard').innerHTML=`<div class='card device'><div><div class='device-name'>${d.device_id}</div><div class='sub'>Firmware ${d.firmware}</div></div><div class='badge ${online?'ok':'bad'}'>${online?'ONLINE':'OFFLINE'}</div></div><div class='grid'><div class='card'><div class='label'>UPTIME</div><div class='value'>${d.uptime_s} s</div></div><div class='card'><div class='label'>FREE HEAP</div><div class='value'>${Math.round(d.free_heap/1024)} KB</div></div><div class='card'><div class='label'>WI-FI SIGNAL</div><div class='value'>${d.wifi_rssi} dBm</div></div></div>`};
 </script></body></html>"""
+HTML = HTML.replace("{{", "{").replace("}}", "}")
 
 
 def mqtt_message(client, userdata, message):
@@ -65,7 +66,7 @@ def dashboard():
 <div class='grid'><div class='card'>Uptime<div class='value'>{data.get('uptime_s', 0)} s</div></div>
 <div class='card'>Free heap<div class='value'>{int(data.get('free_heap', 0)/1024)} KB</div></div>
 <div class='card'>Wi-Fi RSSI<div class='value'>{data.get('wifi_rssi', '?')} dBm</div></div></div>"""
-    return HTML.format(content=content)
+    return HTML.replace("{content}", content)
 
 
 async def broadcast(data):
