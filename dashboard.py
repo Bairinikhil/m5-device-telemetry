@@ -18,7 +18,7 @@ lock = threading.Lock()
 app = FastAPI(title="M5 Device Telemetry")
 
 HTML = """<!doctype html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='10'><title>M5 Telemetry</title>
-<style>body{font:18px system-ui;max-width:850px;margin:40px auto;background:#10151c;color:#eaf2f8}h1{color:#55d6be}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}.card{background:#1b2530;padding:20px;border-radius:12px}.value{font-size:28px;font-weight:700;margin-top:8px}.ok{color:#55d6be}.bad{color:#ff7675}small{color:#9fb0bf}</style></head>
+<style>body{{font:18px system-ui;max-width:850px;margin:40px auto;background:#10151c;color:#eaf2f8}}h1{{color:#55d6be}}.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}.card{{background:#1b2530;padding:20px;border-radius:12px}}.value{{font-size:28px;font-weight:700;margin-top:8px}}.ok{{color:#55d6be}}.bad{{color:#ff7675}}small{{color:#9fb0bf}}</style></head>
 <body><h1>M5 Device Telemetry</h1>{content}<p><small>Refreshes every 10 seconds. MQTT topic: devices/+/health</small></p></body></html>"""
 
 
