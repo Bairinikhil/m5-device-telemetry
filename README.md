@@ -30,4 +30,4 @@ Start the dashboard while Mosquitto is running:
 python -m uvicorn dashboard:app --host 127.0.0.1 --port 8080
 ```
 
-Open `http://127.0.0.1:8080` in a browser. The dashboard shows the latest health packet and marks the device offline after 30 seconds without telemetry.
+Open `http://127.0.0.1:8080` in a browser. The dashboard shows the latest health packet and marks the device offline after 30 seconds without telemetry. Recent telemetry is stored locally in `telemetry.db`, so chart history survives dashboard restarts.

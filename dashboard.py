@@ -1,5 +1,6 @@
 import json
 import asyncio
+import sqlite3
 import threading
 import time
 from collections import deque
@@ -11,6 +12,7 @@ from fastapi.responses import HTMLResponse
 MQTT_HOST = "127.0.0.1"
 MQTT_PORT = 1883
 MQTT_TOPIC = "devices/+/health"
+DB_PATH = "telemetry.db"
 
 latest = {}
 history = deque(maxlen=60)
@@ -19,6 +21,12 @@ clients = set()
 event_loop = None
 
 app = FastAPI(title="M5 Device Telemetry")
+
+def init_db():
+    with sqlite3.connect(DB_PATH) as db:
+        db.execute("CREATE TABLE IF NOT EXISTS telemetry (id INTEGER PRIMARY KEY AUTOINCREMENT, received_at REAL NOT NULL, device_id TEXT, firmware TEXT, uptime_s INTEGER, free_heap INTEGER, wifi_rssi INTEGER)")
+
+init_db()
 
 HTML = """<!doctype html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='10'><meta name='viewport' content='width=device-width,initial-scale=1'><title>M5 Telemetry</title>
 <style>*{{box-sizing:border-box}}body{{font:16px system-ui,sans-serif;max-width:980px;margin:0 auto;padding:42px 22px;background:linear-gradient(135deg,#0b1220,#121d2b);color:#eaf2f8;min-height:100vh}}header{{display:flex;justify-content:space-between;align-items:end;margin-bottom:28px}}h1{{margin:0;color:#70f0d0;font-size:32px}}.sub{{color:#8fa6b8;margin-top:6px}}.card{{background:rgba(28,42,57,.9);border:1px solid #2d4558;padding:22px;border-radius:16px;box-shadow:0 10px 30px #0003;margin-bottom:16px}}.device{{display:flex;justify-content:space-between;align-items:center}}.device-name{{font-size:20px;font-weight:700}}.badge{{padding:7px 13px;border-radius:99px;font-weight:700;font-size:13px;letter-spacing:.5px}}.ok{{background:#123e3a;color:#70f0d0}}.bad{{background:#4a2027;color:#ff9ca3}}.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}}.label{{color:#8fa6b8;font-size:14px}}.value{{font-size:30px;font-weight:750;margin-top:8px}}footer{{color:#71899b;font-size:13px;margin-top:24px}}@media(max-width:650px){{header{{display:block}}h1{{font-size:27px}}.grid{{grid-template-columns:1fr}}}}</style></head>
@@ -36,6 +44,8 @@ def mqtt_message(client, userdata, message):
     try:
         data = json.loads(message.payload.decode())
         data["received_at"] = time.time()
+        with sqlite3.connect(DB_PATH) as db:
+            db.execute("INSERT INTO telemetry (received_at, device_id, firmware, uptime_s, free_heap, wifi_rssi) VALUES (?, ?, ?, ?, ?, ?)", (data["received_at"], data.get("device_id"), data.get("firmware"), data.get("uptime_s"), data.get("free_heap"), data.get("wifi_rssi")))
         with lock:
             latest.clear()
             latest.update(data)
@@ -93,8 +103,9 @@ async def websocket_endpoint(websocket: WebSocket):
             data = dict(latest)
         if data:
             await websocket.send_json(data)
-        with lock:
-            saved_history = list(history)
+        with sqlite3.connect(DB_PATH) as db:
+            rows = db.execute("SELECT received_at, device_id, firmware, uptime_s, free_heap, wifi_rssi FROM telemetry ORDER BY id DESC LIMIT 60").fetchall()
+        saved_history = [dict(received_at=r[0], device_id=r[1], firmware=r[2], uptime_s=r[3], free_heap=r[4], wifi_rssi=r[5]) for r in reversed(rows)]
         await websocket.send_json({"type": "history", "items": saved_history})
         while True:
             await websocket.receive_text()
