@@ -2,9 +2,9 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 
-const char* WIFI_SSID = "YOUR_WIFI_NAME";
-const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
-const char* MQTT_HOST = "YOUR_MQTT_BROKER";
+const char* WIFI_SSID = "404 Network Not Found";
+const char* WIFI_PASSWORD = "K@rthik2001";
+const char* MQTT_HOST = "192.168.1.156";
 const int MQTT_PORT = 1883;
 const char* DEVICE_ID = "m5-device-01";
 
