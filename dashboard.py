@@ -17,9 +17,9 @@ lock = threading.Lock()
 
 app = FastAPI(title="M5 Device Telemetry")
 
-HTML = """<!doctype html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='10'><title>M5 Telemetry</title>
-<style>body{{font:18px system-ui;max-width:850px;margin:40px auto;background:#10151c;color:#eaf2f8}}h1{{color:#55d6be}}.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}}.card{{background:#1b2530;padding:20px;border-radius:12px}}.value{{font-size:28px;font-weight:700;margin-top:8px}}.ok{{color:#55d6be}}.bad{{color:#ff7675}}small{{color:#9fb0bf}}</style></head>
-<body><h1>M5 Device Telemetry</h1>{content}<p><small>Refreshes every 10 seconds. MQTT topic: devices/+/health</small></p></body></html>"""
+HTML = """<!doctype html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='10'><meta name='viewport' content='width=device-width,initial-scale=1'><title>M5 Telemetry</title>
+<style>*{{box-sizing:border-box}}body{{font:16px system-ui,sans-serif;max-width:980px;margin:0 auto;padding:42px 22px;background:linear-gradient(135deg,#0b1220,#121d2b);color:#eaf2f8;min-height:100vh}}header{{display:flex;justify-content:space-between;align-items:end;margin-bottom:28px}}h1{{margin:0;color:#70f0d0;font-size:32px}}.sub{{color:#8fa6b8;margin-top:6px}}.card{{background:rgba(28,42,57,.9);border:1px solid #2d4558;padding:22px;border-radius:16px;box-shadow:0 10px 30px #0003;margin-bottom:16px}}.device{{display:flex;justify-content:space-between;align-items:center}}.device-name{{font-size:20px;font-weight:700}}.badge{{padding:7px 13px;border-radius:99px;font-weight:700;font-size:13px;letter-spacing:.5px}}.ok{{background:#123e3a;color:#70f0d0}}.bad{{background:#4a2027;color:#ff9ca3}}.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}}.label{{color:#8fa6b8;font-size:14px}}.value{{font-size:30px;font-weight:750;margin-top:8px}}footer{{color:#71899b;font-size:13px;margin-top:24px}}@media(max-width:650px){{header{{display:block}}h1{{font-size:27px}}.grid{{grid-template-columns:1fr}}}}</style></head>
+<body><header><div><h1>M5 Device Telemetry</h1><div class='sub'>Live health monitor for your edge device</div></div></header>{content}<footer>Auto-refreshes every 10 seconds · MQTT: devices/+/health</footer></body></html>"""
 
 
 def mqtt_message(client, userdata, message):
@@ -48,7 +48,7 @@ def dashboard():
     with lock:
         data = dict(latest)
     if not data:
-        content = "<div class='card'>Waiting for telemetry...</div>"
+        content = "<div class='card'><div class='label'>DEVICE STATUS</div><div class='value'>Waiting for telemetry...</div><div class='sub'>Start the M5 device to receive its first health packet.</div></div>"
     else:
         age = time.time() - data.get("received_at", 0)
         state = "ONLINE" if age < 30 else "OFFLINE"
