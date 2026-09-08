@@ -1,6 +1,8 @@
 import json
 import asyncio
 import sqlite3
+import csv
+import io
 import threading
 import time
 from collections import deque
@@ -25,12 +27,13 @@ app = FastAPI(title="M5 Device Telemetry")
 def init_db():
     with sqlite3.connect(DB_PATH) as db:
         db.execute("CREATE TABLE IF NOT EXISTS telemetry (id INTEGER PRIMARY KEY AUTOINCREMENT, received_at REAL NOT NULL, device_id TEXT, firmware TEXT, uptime_s INTEGER, free_heap INTEGER, wifi_rssi INTEGER)")
+        db.execute("CREATE TABLE IF NOT EXISTS alerts (id INTEGER PRIMARY KEY AUTOINCREMENT, created_at REAL NOT NULL, device_id TEXT, alert TEXT)")
 
 init_db()
 
 HTML = """<!doctype html><html><head><meta charset='utf-8'><meta http-equiv='refresh' content='10'><meta name='viewport' content='width=device-width,initial-scale=1'><title>M5 Telemetry</title>
 <style>*{{box-sizing:border-box}}body{{font:16px system-ui,sans-serif;max-width:980px;margin:0 auto;padding:42px 22px;background:linear-gradient(135deg,#0b1220,#121d2b);color:#eaf2f8;min-height:100vh}}header{{display:flex;justify-content:space-between;align-items:end;margin-bottom:28px}}h1{{margin:0;color:#70f0d0;font-size:32px}}.sub{{color:#8fa6b8;margin-top:6px}}.card{{background:rgba(28,42,57,.9);border:1px solid #2d4558;padding:22px;border-radius:16px;box-shadow:0 10px 30px #0003;margin-bottom:16px}}.device{{display:flex;justify-content:space-between;align-items:center}}.device-name{{font-size:20px;font-weight:700}}.badge{{padding:7px 13px;border-radius:99px;font-weight:700;font-size:13px;letter-spacing:.5px}}.ok{{background:#123e3a;color:#70f0d0}}.bad{{background:#4a2027;color:#ff9ca3}}.grid{{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}}.label{{color:#8fa6b8;font-size:14px}}.value{{font-size:30px;font-weight:750;margin-top:8px}}canvas{{display:block;width:100%;height:180px;margin:8px 0 18px}}footer{{color:#71899b;font-size:13px;margin-top:24px}}@media(max-width:650px){{header{{display:block}}h1{{font-size:27px}}.grid{{grid-template-columns:1fr}}}}</style></head>
-<body><header><div><h1>M5 Device Telemetry</h1><div class='sub'>Live health monitor for your edge device</div></div></header><div id='dashboard'>{content}</div><div class='card'><div class='label'>LIVE HISTORY</div><div class='sub' style='color:#70f0d0'>● Free heap (KB)</div><canvas id='heapChart' height='130'></canvas><div class='sub' style='color:#ffc857'>● Wi-Fi RSSI (dBm)</div><canvas id='rssiChart' height='130'></canvas></div><footer>Live via WebSocket · MQTT: devices/+/health</footer><script>
+<body><header><div><h1>M5 Device Telemetry</h1><div class='sub'>Live health monitor for your edge device</div></div></header><div id='dashboard'>{content}</div><div class='card'><div class='label'>LIVE HISTORY</div><div class='sub' style='color:#70f0d0'>● Free heap (KB)</div><canvas id='heapChart' height='130'></canvas><div class='sub' style='color:#ffc857'>● Wi-Fi RSSI (dBm)</div><canvas id='rssiChart' height='130'></canvas></div><footer>Live via WebSocket · MQTT: devices/+/health · <a href='/export.csv' style='color:#70f0d0'>Download CSV</a></footer><script>
 const chartData=[];const heapCanvas=document.getElementById('heapChart');const rssiCanvas=document.getElementById('rssiChart');
 function updateChart(d){chartData.push({heap:d.free_heap/1024,rssi:d.wifi_rssi});if(chartData.length>30)chartData.shift();drawChart()}
 function drawOne(canvas,key,min,max,color){const w=canvas.clientWidth||700,h=130,dpr=devicePixelRatio||1,ctx=canvas.getContext('2d');canvas.width=w*dpr;canvas.height=h*dpr;ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,w,h);const left=48,right=w-18,top=10,bottom=h-22;ctx.font='12px system-ui';ctx.strokeStyle='#294052';ctx.lineWidth=1;for(let i=0;i<=4;i++){const y=top+i*(bottom-top)/4;ctx.beginPath();ctx.moveTo(left,y);ctx.lineTo(right,y);ctx.stroke();ctx.fillStyle='#8fa6b8';ctx.fillText(String(Math.round(max-(max-min)*i/4)),5,y+4)}if(chartData.length<2)return;ctx.beginPath();chartData.forEach((x,i)=>{const px=left+i*(right-left)/(chartData.length-1),py=bottom-(x[key]-min)/(max-min)*(bottom-top);i?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.strokeStyle=color;ctx.lineWidth=3;ctx.lineJoin='round';ctx.lineCap='round';ctx.stroke()}
@@ -38,6 +41,8 @@ function drawChart(){drawOne(heapCanvas,'heap',0,320,'#70f0d0');drawOne(rssiCanv
 function alertText(d){let a=[];if(d.free_heap<100000)a.push('Low memory');if(d.wifi_rssi<-70)a.push('Weak Wi-Fi signal');return a.length?`<div class='card bad'><b>⚠ ${a.join(' · ')}</b></div>`:''}
 const ws=new WebSocket((location.protocol==='https:'?'wss://':'ws://')+location.host+'/ws');
 ws.onmessage=(e)=>{const d=JSON.parse(e.data);if(d.type==='history'){d.items.forEach(updateChart);return}const online=(Date.now()/1000-d.received_at)<30;document.getElementById('dashboard').innerHTML=alertText(d)+`<div class='card device'><div><div class='device-name'>${d.device_id}</div><div class='sub'>Firmware ${d.firmware}</div></div><div class='badge ${online?'ok':'bad'}'>${online?'ONLINE':'OFFLINE'}</div></div><div class='grid'><div class='card'><div class='label'>UPTIME</div><div class='value'>${d.uptime_s} s</div></div><div class='card'><div class='label'>FREE HEAP</div><div class='value'>${Math.round(d.free_heap/1024)} KB</div></div><div class='card'><div class='label'>WI-FI SIGNAL</div><div class='value'>${d.wifi_rssi} dBm</div></div></div>`;updateChart(d)};
+ws.addEventListener('message',e=>{try{const d=JSON.parse(e.data);if(d.received_at)lastPacket=d.received_at}catch(_){}});
+let lastPacket=0;setInterval(()=>{if(lastPacket&&Date.now()/1000-lastPacket>30){const el=document.querySelector('.badge');if(el){el.className='badge bad';el.textContent='OFFLINE'}}},5000);
 </script></body></html>"""
 HTML = HTML.replace("{{", "{").replace("}}", "}")
 
@@ -48,6 +53,10 @@ def mqtt_message(client, userdata, message):
         data["received_at"] = time.time()
         with sqlite3.connect(DB_PATH) as db:
             db.execute("INSERT INTO telemetry (received_at, device_id, firmware, uptime_s, free_heap, wifi_rssi) VALUES (?, ?, ?, ?, ?, ?)", (data["received_at"], data.get("device_id"), data.get("firmware"), data.get("uptime_s"), data.get("free_heap"), data.get("wifi_rssi")))
+            alerts = []
+            if data.get("free_heap", 999999) < 100000: alerts.append("low_memory")
+            if data.get("wifi_rssi", 0) < -70: alerts.append("weak_wifi")
+            for alert in alerts: db.execute("INSERT INTO alerts (created_at, device_id, alert) VALUES (?, ?, ?)", (data["received_at"], data.get("device_id"), alert))
         with lock:
             latest.clear()
             latest.update(data)
@@ -92,6 +101,16 @@ async def broadcast(data):
         except Exception:
             stale.add(client)
     clients.difference_update(stale)
+
+
+@app.get("/export.csv")
+def export_csv():
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["received_at", "device_id", "firmware", "uptime_s", "free_heap", "wifi_rssi"])
+    with sqlite3.connect(DB_PATH) as db:
+        writer.writerows(db.execute("SELECT received_at, device_id, firmware, uptime_s, free_heap, wifi_rssi FROM telemetry ORDER BY id"))
+    return HTMLResponse(output.getvalue(), media_type="text/csv", headers={"Content-Disposition": "attachment; filename=telemetry.csv"})
 
 
 @app.websocket("/ws")
