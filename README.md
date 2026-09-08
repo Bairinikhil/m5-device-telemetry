@@ -1,9 +1,13 @@
 # M5 Device Telemetry
 
-Health telemetry for the M5CoreS3 over MQTT.
+See how your M5CoreS3 is doing, live in your browser. The device sends health readings over MQTT every 10 seconds.
+
+![M5CoreS3 dashboard showing live memory and Wi-Fi charts](docs/dashboard.png)
+
+Live charts track free memory and Wi-Fi strength. The dashboard also shows uptime, detects offline devices, flags low memory or weak Wi-Fi, and saves history to SQLite with CSV export.
 
 ```text
-M5CoreS3 -> Wi-Fi -> MQTT -> monitoring dashboard
+M5CoreS3 -> Wi-Fi -> Mosquitto MQTT -> FastAPI + SQLite -> live browser dashboard
 ```
 
 ## Test
